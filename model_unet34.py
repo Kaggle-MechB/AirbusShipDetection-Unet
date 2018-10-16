@@ -82,7 +82,7 @@ class SaveFeatures():
     def remove(self): self.hook.remove()
 
 class Unet34(nn.Module):
-    def __init__(self, rn):
+    def __init__(self, rn, drop):
         super().__init__()
         self.rn = rn
         self.sfs = [SaveFeatures(rn[i]) for i in [2,4,5,6]]
@@ -92,10 +92,11 @@ class Unet34(nn.Module):
         self.up4 = UnetBlock(256,64,256)
         self.up5 = nn.ConvTranspose2d(256, 1, 2, stride=2)
         self.out = nn.Tanh()
+        self.drop = drop
 
     def forward(self,x):
         x = F.relu(self.rn(x))
-        x = nn.Dropout(p=DROP)(x)
+        x = nn.Dropout(p=self.drop)(x)
         x = self.up1(x, self.sfs[3].features)
         x = self.up2(x, self.sfs[2].features)
         x = self.up3(x, self.sfs[1].features)
@@ -116,11 +117,11 @@ class UnetModel():
         return lgs + [children(self.model)[1:]]
 
 
-def make_model():
+def make_model(drop=0.5):
     resnet34 = models.resnet34(pretrained=True)
     for param in resnet34.parameters():
         param.requires_grad = False
     resnet34 = nn.Sequential(*list(resnet34.children())[:-2])
-    m = Unet34(resnet34)
+    m = Unet34(resnet34, drop=drop)
     print(m.eval())
     return m
